@@ -1,0 +1,5 @@
+name: Array Manipulator
+type: module
+description: Manipulate one or more dimensional arrays with callbacks
+core: 8.x
+package: Utils
