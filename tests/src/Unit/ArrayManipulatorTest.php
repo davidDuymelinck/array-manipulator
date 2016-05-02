@@ -10,25 +10,29 @@ class ArrayManipulatorTest extends UnitTestCase
 {
     public function testManipulateOneManipulatorZeroDepth() {
         $arrayManipulator = new ArrayManipulator(['a']);
-        $arrayManipulator->addManipulator('strtoupper');
+        $arrayManipulator->addManipulator(function($array) {
+            return array_map('strtoupper', $array);
+        });
         $this->assertEquals(['A'], $arrayManipulator->manipulate());
 
-        $arrayManipulator = new ArrayManipulator([[1,2,3]]);
+        $arrayManipulator = new ArrayManipulator([1,2,3]);
         $arrayManipulator->addManipulator(function($array) {
             return array_map(function($value) { return $value+$value; }, $array);
         });
-        $this->assertEquals([[2,4,6]], $arrayManipulator->manipulate());
+        $this->assertEquals([2,4,6], $arrayManipulator->manipulate());
 
         // With key ----------------------------------------------------
 
         $arrayManipulator = new ArrayManipulator(['test' => 'a']);
-        $arrayManipulator->addManipulator('strtoupper', 'test');
+        $arrayManipulator->addManipulator(function($array) {
+            return array_map('strtoupper', $array);
+        }, 0, 'test');
         $this->assertEquals(['test' => 'A'], $arrayManipulator->manipulate());
 
         $arrayManipulator = new ArrayManipulator(['test' => [1,2,3]]);
         $arrayManipulator->addManipulator(function($array) {
             return array_map(function($value) { return $value+$value; }, $array);
-        }, 'test');
+        }, 0, 'test');
         $this->assertEquals(['test' => [2,4,6]], $arrayManipulator->manipulate());
     }
 
@@ -39,7 +43,7 @@ class ArrayManipulatorTest extends UnitTestCase
         ]);
         $arrayManipulator->addManipulator(function($array) {
             return array_map(function($value) { return $value+$value; }, $array);
-        }, '', 2);
+        }, 2);
         $expected = [
             [[2,4,6]],
             [[2,4,6]],
@@ -54,7 +58,7 @@ class ArrayManipulatorTest extends UnitTestCase
         ]);
         $arrayManipulator->addManipulator(function($array) {
             return array_map(function($value) { return $value+$value; }, $array);
-        }, 'test', 1);
+        }, 1, 'test');
         $expected = [
             ['test' => [2,4,6]],
             ['test' => [2,4,6]],
@@ -64,39 +68,43 @@ class ArrayManipulatorTest extends UnitTestCase
 
     public function testManipulatMoreManipulatorsZeroDepth() {
         $arrayManipulator = new ArrayManipulator(['a']);
-        $arrayManipulator->addManipulator('strtoupper')
-                            ->addManipulator(function($value) {
-                                return $value.$value;
+        $arrayManipulator->addManipulator(function($array) {
+                                return array_map('strtoupper', $array);
+                            })
+                            ->addManipulator(function($array) {
+                                return array_map(function($value) { return $value.$value; }, $array);
                             });
 
         $this->assertEquals(['AA'], $arrayManipulator->manipulate());
 
-        $arrayManipulator = new ArrayManipulator([[1,2,3]]);
+        $arrayManipulator = new ArrayManipulator([1,2,3]);
         $arrayManipulator->addManipulator(function($array) {
                                 return array_map(function($value) { return $value+$value; }, $array);
                             })
                             ->addManipulator(function($array) {
                                 return array_map(function($value) { return $value-($value/2); }, $array);
                             });
-        $this->assertEquals([[1,2,3]], $arrayManipulator->manipulate());
+        $this->assertEquals([1,2,3], $arrayManipulator->manipulate());
 
 
         // With key ----------------------------------------------------
 
         $arrayManipulator = new ArrayManipulator(['test' => 'a']);
-        $arrayManipulator->addManipulator('strtoupper', 'test')
-                            ->addManipulator(function($value) {
-                                return $value.$value;
-                            }, 'test');
+        $arrayManipulator->addManipulator(function($array) {
+                                return array_map('strtoupper', $array);
+                            }, 0, 'test')
+                            ->addManipulator(function($array) {
+                                return array_map(function($value) { return $value.$value; }, $array);
+                            }, 0, 'test');
         $this->assertEquals(['test' => 'AA'], $arrayManipulator->manipulate());
 
         $arrayManipulator = new ArrayManipulator(['test' => [1,2,3]]);
         $arrayManipulator->addManipulator(function($array) {
                                 return array_map(function($value) { return $value+$value; }, $array);
-                            }, 'test')
+                            }, 0, 'test')
                             ->addManipulator(function($array) {
                                 return array_map(function($value) { return $value-($value/2); }, $array);
-                            }, 'test');
+                            }, 0, 'test');
         $this->assertEquals(['test' => [1,2,3]], $arrayManipulator->manipulate());
     }
 
@@ -107,10 +115,10 @@ class ArrayManipulatorTest extends UnitTestCase
         ]);
         $arrayManipulator->addManipulator(function($array) {
                                 return array_map(function($value) { return $value+$value; }, $array);
-                            }, '', 2)
+                            }, 2)
                             ->addManipulator(function($array) {
                                 return array_map(function($value) { return $value-($value/2); }, $array);
-                            }, '', 2);
+                            }, 2);
         $expected = [
             [[1,2,3]],
             [[1,2,3]],
@@ -125,10 +133,10 @@ class ArrayManipulatorTest extends UnitTestCase
         ]);
         $arrayManipulator->addManipulator(function($array) {
                                 return array_map(function($value) { return $value+$value; }, $array);
-                            }, 'test', 1)
+                            }, 1, 'test')
                             ->addManipulator(function($array) {
                                 return array_map(function($value) { return $value-($value/2); }, $array);
-                            }, 'test', 1);
+                            }, 1, 'test');
         $expected = [
             ['test' => [1,2,3]],
             ['test' => [1,2,3]],
@@ -152,14 +160,13 @@ class ArrayManipulatorTest extends UnitTestCase
             ]
         ]);
         $arrayManipulator
-            ->forceKeyOnDepth('sections', 1)
             ->addManipulator(function($array) {
-                foreach($array['fields'] as $fieldName => $options) {
-                    $array['fields'][$fieldName]['visible'] = false;
-                }
+                return array_map(function($item){
+                    $item['visible'] = false;
 
-                return $array;
-            }, '', 3)
+                    return $item;
+                }, $array);
+            }, 3, 'fields')
             ->addManipulator(function($array) {
                 foreach($array as $sectionKey => $sectionSettings) {
                     $hiddenFieldCount = 0;
@@ -174,7 +181,7 @@ class ArrayManipulatorTest extends UnitTestCase
                 }
 
                 return $array;
-            }, '', 2)
+            }, 2)
             ->addManipulator(function($array) {
                 $hiddenSectionCount = 0;
 
@@ -187,7 +194,7 @@ class ArrayManipulatorTest extends UnitTestCase
                 $array['visible'] = $hiddenSectionCount < count($array['sections']);
 
                 return $array;
-            });
+            }, 1);
         $expected = [
             1 => [
                 'step_name' => 'step 1',
@@ -209,6 +216,20 @@ class ArrayManipulatorTest extends UnitTestCase
             ]
         ];
         $this->assertEquals($expected, $arrayManipulator->manipulate());
+    }
+
+    public function testMissmatchedFieldKey() {
+        $arrayManipulator = new ArrayManipulator([1,2,3]);
+        $arrayManipulator->addManipulator(function($array) {
+            return $array;
+        }, 0, 'not_here');
+        $this->assertEquals([1,2,3], $arrayManipulator->manipulate());
+
+        $arrayManipulator = new ArrayManipulator([[1,2,3]]);
+        $arrayManipulator->addManipulator(function($array) {
+            return $array;
+        }, 1, 'not_here');
+        $this->assertEquals([[1,2,3]], $arrayManipulator->manipulate());
     }
 
 }
